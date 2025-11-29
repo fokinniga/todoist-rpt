@@ -1,0 +1,33 @@
+project_id,section_id,task_content,completed_at,description,due,duration,completed_at_local_naive,due_date_str,due_date,project_name,parent_id,section_name,status
+6f3qQ5WQMprv7xh8,6f3qgvw7C5w5wRW8,Pagar CFE,,,"{'date': datetime.date(2025, 11, 25), 'timezone': None}",,,2025-11-25,2025-11-25 00:00:00,Sin Proyecto,,PAGOS,Pendiente
+6fC9MQ27h9R28JV9,,Hacer cuenta de gastos,,,"{'date': datetime.date(2025, 11, 30), 'timezone': None}",,,2025-11-30,2025-11-30 00:00:00,ISS GENERAL,6f3xv8Rc6p43Wj4Q,Sin Sección,Pendiente
+6f424RP23PCrffqw,,Revisar y documentar el alcance de los camiones.,,,"{'date': datetime.date(2025, 12, 1), 'timezone': None}",,,2025-12-01,2025-12-01 00:00:00,SEMEX - CAMIONES SINTRAM,6f3xv8Rc6p43Wj4Q,Sin Sección,Pendiente
+6fF6c6pPcGr5HCRc,,Aniversario Esveidi Toks.,,,"{'date': datetime.date(2025, 11, 25), 'timezone': None}",,,2025-11-25,2025-11-25 00:00:00,Sin Proyecto,,Sin Sección,Pendiente
+6fGJqpJqRMp8q5RF,,Revisar SEARS San Agustín,,,"{'date': datetime.date(2025, 11, 24), 'timezone': None}",,,2025-11-24,2025-11-24 00:00:00,Sin Proyecto,,Sin Sección,Pendiente
+6fF6F9vQGP5Gq54c,,Desayuno con flor,,,"{'date': datetime.date(2025, 11, 25), 'timezone': None}",,,2025-11-25,2025-11-25 00:00:00,Sin Proyecto,,Sin Sección,Pendiente
+6fJcFx9vqjMXfCh5,,Revisar con Pablo la instalación de POC,,,"{'date': datetime.date(2025, 11, 27), 'timezone': None}",,,2025-11-27,2025-11-27 00:00:00,CEMEX POC,6f3xv8Rc6p43Wj4Q,Sin Sección,Pendiente
+6fHXmPV5m7FqFVC7,,Levantamiento con Lucas,,,"{'date': datetime.datetime(2025, 11, 25, 10, 0), 'timezone': None}","Duration(amount=120, unit='minute')",,2025-11-25 10:00:00,2025-11-25 10:00:00,Sin Proyecto,,Sin Sección,Pendiente
+6f3gJHpVF5H6WwcR,,Configuración script correo,,,"{'date': datetime.datetime(2025, 11, 25, 16, 0), 'timezone': None}","Duration(amount=120, unit='minute')",,2025-11-25 16:00:00,2025-11-25 16:00:00,Sin Proyecto,,Sin Sección,Pendiente
+6fC9MQ27h9R28JV9,,Mandar reporte de pendientes a David,,,"{'date': datetime.date(2025, 11, 24), 'timezone': None}",,,2025-11-24,2025-11-24 00:00:00,ISS GENERAL,6f3xv8Rc6p43Wj4Q,Sin Sección,Pendiente
+6fGJqpJqRMp8q5RF,,Photo from Oscar Alanis sears,,,"{'date': datetime.date(2025, 11, 24), 'timezone': None}",,,2025-11-24,2025-11-24 00:00:00,Sin Proyecto,,Sin Sección,Pendiente
+6fF6c6pPcGr5HCRc,,[🚨EUTANASIA LEGAL en MÉXICO 🇲🇽: Ley Trasciende por SAMARA MARTINEZ | #Dia...](https://youtube.com/watch?v=f30rGWbCfSw&si=CVzSGF6UKDT7-fPj),,,"{'date': datetime.date(2025, 11, 25), 'timezone': None}",,,2025-11-25,2025-11-25 00:00:00,Sin Proyecto,,Sin Sección,Pendiente
+6f3qQ5WQMprv7xh8,,Obtener CulturalAccess en LabUANL en Centro,,,"{'date': datetime.date(2025, 11, 29), 'timezone': None}",,,2025-11-29,2025-11-29 00:00:00,Sin Proyecto,,Sin Sección,Pendiente
+6fC9MQ27h9R28JV9,,Pagar google cloud,,,"{'date': datetime.date(2025, 12, 1), 'timezone': None}",,,2025-12-01,2025-12-01 00:00:00,ISS GENERAL,6f3xv8Rc6p43Wj4Q,Sin Sección,Pendiente
+6f3qMqW5vcr3XF3q,,Vencimiento licencia Kellogs,,,"{'date': datetime.date(2025, 12, 3), 'timezone': None}",,,2025-12-03,2025-12-03 00:00:00,Sin Proyecto,,Sin Sección,Pendiente
+6f4243m2GQHprHgV,,[5] Desmontaje de cámara #Oct 8,,,"{'date': datetime.date(2025, 12, 1), 'timezone': None}",,,2025-12-01,2025-12-01 00:00:00,SEMEX - MOTUS PRO,6f3xv8Rc6p43Wj4Q,Sin Sección,Pendiente
+6f4243m2GQHprHgV,,[6] Entrega de equipo a personal de ISS #Oct 9,,,"{'date': datetime.date(2025, 12, 1), 'timezone': None}",,,2025-12-01,2025-12-01 00:00:00,SEMEX - MOTUS PRO,6f3xv8Rc6p43Wj4Q,Sin Sección,Pendiente
+6fC9MQ27h9R28JV9,,[Llenar reporte proyectos para reunión norte.](https://isscctv365-my.sharepoint.com/:x:/g/personal/arturo_dominguez_issivs_com/EQh_4b0yR1RCg1P-Fi2V0KIBiJNIylHB4_DdMOwQbQfpKQ?CID=a57d3447-5fe7-e412-1554-000c1867b434&e=HASYbP&clickParams=eyJYLUFwcE5hbWUiOiJNaWNyb3NvZnQgT3V0bG9vayBXZWIgQXBwIiwiWC1BcHBWZXJzaW9uIjoiMjAyNTEwMzEwMDguMTUiLCJPUyI6IldpbmRvd3MgMTEifQ%3D%3D),,,"{'date': datetime.datetime(2025, 11, 27, 10, 0), 'timezone': None}",,,2025-11-27 10:00:00,2025-11-27 10:00:00,ISS GENERAL,6f3xv8Rc6p43Wj4Q,Sin Sección,Pendiente
+6f422jmHj6Xc85jw,,MCA - Certificación VMS Expert On-site - México/Monterrey,,,"{'date': datetime.date(2025, 11, 25), 'timezone': None}",,,2025-11-25,2025-11-25 00:00:00,ISS CERTIFICACIONES,6f3xv8Rc6p43Wj4Q,Sin Sección,Pendiente
+6f422jmHj6Xc85jw,,MCA - Certificación VMS Basic Virtual,,,"{'date': datetime.date(2025, 12, 2), 'timezone': None}",,,2025-12-02,2025-12-02 00:00:00,ISS CERTIFICACIONES,6f3xv8Rc6p43Wj4Q,Sin Sección,Pendiente
+6f3qPQGcJvJCGRPg,,Recoger a Areli,,,"{'date': datetime.datetime(2025, 11, 25, 14, 45), 'timezone': None}",,,2025-11-25 14:45:00,2025-11-25 14:45:00,Sin Proyecto,,Sin Sección,Pendiente
+6f3qPQGcJvJCGRPg,,Toma de fotografía anuario,,,"{'date': datetime.date(2025, 12, 7), 'timezone': None}",,,2025-12-07,2025-12-07 00:00:00,Sin Proyecto,,Sin Sección,Pendiente
+6f3qQ5WQMprv7xh8,,PAGO TEC,,,"{'date': datetime.date(2025, 12, 1), 'timezone': None}",,,2025-12-01,2025-12-01 00:00:00,Sin Proyecto,,Sin Sección,Pendiente
+6f3qPQGcJvJCGRPg,,No hay clases,,,"{'date': datetime.date(2025, 11, 28), 'timezone': None}",,,2025-11-28,2025-11-28 00:00:00,Sin Proyecto,,Sin Sección,Pendiente
+6f3qPQGcJvJCGRPg,,Platica de sexualidad,,,"{'date': datetime.datetime(2025, 12, 1, 10, 0), 'timezone': None}","Duration(amount=120, unit='minute')",,2025-12-01 10:00:00,2025-12-01 10:00:00,Sin Proyecto,,Sin Sección,Pendiente
+6f3qQ5WQMprv7xh8,,Update Disney+ account,,,"{'date': datetime.date(2025, 12, 5), 'timezone': None}",,,2025-12-05,2025-12-05 00:00:00,Sin Proyecto,,Sin Sección,Pendiente
+6f3h7r5p7QgWmhPp,,Cumpleanos Fernando Prieto,,,"{'date': datetime.date(2025, 11, 26), 'timezone': None}",,,2025-11-26,2025-11-26 00:00:00,Sin Proyecto,,Sin Sección,Pendiente
+6f3qQ5WQMprv7xh8,,Sacar cita pasaporte Areli,,,"{'date': datetime.date(2025, 12, 1), 'timezone': None}",,,2025-12-01,2025-12-01 00:00:00,Sin Proyecto,,Sin Sección,Pendiente
+6f424rwJR7rJhXhQ,,Revisar licencia Camiones,,,"{'date': datetime.date(2025, 11, 24), 'timezone': None}",,,2025-11-24,2025-11-24 00:00:00,SEMEX - C5 NL MODIFICATORIO,6f3xv8Rc6p43Wj4Q,Sin Sección,Pendiente
+6f3qQ5WQMprv7xh8,,comprar botas de Areli,,,"{'date': datetime.date(2025, 11, 30), 'timezone': None}",,,2025-11-30,2025-11-30 00:00:00,Sin Proyecto,,Sin Sección,Pendiente
+6f3qQ5WQMprv7xh8,,Comprar extractor para cocina,,,"{'date': datetime.date(2025, 11, 29), 'timezone': None}",,,2025-11-29,2025-11-29 00:00:00,Sin Proyecto,,Sin Sección,Pendiente
+6f3h7r5p7QgWmhPp,,Cumpleanos de Jorge Caballero,,,"{'date': datetime.date(2025, 12, 1), 'timezone': None}",,,2025-12-01,2025-12-01 00:00:00,Sin Proyecto,,Sin Sección,Pendiente
