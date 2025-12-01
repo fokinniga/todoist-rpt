@@ -1,0 +1,522 @@
+import os
+import pandas as pd
+from datetime import datetime, timedelta, date
+from dotenv import load_dotenv
+import requests
+from typing import Tuple, Optional, Dict, List, Set
+
+# --- CONFIGURACIÓN Y CONEXIÓN ---
+
+# --- Cargar Variables de Entorno ---
+load_dotenv() 
+API_TOKEN = os.getenv('TODOIST_API_TOKEN')
+if not API_TOKEN:
+    print("¡ERROR! La variable de entorno TODOIST_API_TOKEN no está configurada.")
+    exit() 
+
+# --- Configuración ---
+API_URL = 'https://api.todoist.com/api/v1' 
+
+
+# --- Funciones de Selección y Utilidad (Mismas del paso anterior) ---
+
+def seleccionar_tipo_de_reporte() -> str:
+    """Pregunta al usuario qué tipo de reporte de Todoist desea generar."""
+    print("--- 📝 Generador de Reportes de Todoist ---")
+    print("Por favor, selecciona el tipo de reporte a generar:")
+    print("1. **Reporte semanal**")
+    print("2. **Reporte por proyecto**")
+    
+    while True:
+        try:
+            opcion = input("Ingresa el número de la opción (1 o 2): ")
+            opcion = int(opcion)
+            
+            if opcion == 1:
+                return "semanal"
+            elif opcion == 2:
+                return "proyecto"
+            else:
+                print("⚠️ Opción no válida. Por favor, ingresa 1 o 2.")
+        except ValueError:
+            print("⚠️ Entrada no válida. Por favor, ingresa un número.")
+
+
+def seleccionar_rango_fechas() -> Tuple[date, date]:
+    """Pregunta al usuario el rango de fechas a reportar. Retorna (since_date, until_date)."""
+    today = datetime.now().date()
+    lunes_actual = today - timedelta(days=today.weekday())
+    domingo_actual = lunes_actual + timedelta(days=6)
+    lunes_pasado = lunes_actual - timedelta(weeks=1)
+    domingo_pasado = domingo_actual - timedelta(weeks=1)
+
+    print("\n--- 📅 Rango de Fechas ---")
+    print(f"1. Semana Actual (Lunes {lunes_actual} - Domingo {domingo_actual})")
+    print(f"2. Semana Pasada (Lunes {lunes_pasado} - Domingo {domingo_pasado})")
+    print("3. Últimos N días (a partir de hoy)")
+
+    while True:
+        opcion = input("Ingresa el número de la opción (1, 2 o 3): ")
+        
+        try:
+            opcion_num = int(opcion)
+            
+            if opcion_num == 1:
+                return lunes_actual, domingo_actual
+            
+            elif opcion_num == 2:
+                return lunes_pasado, domingo_pasado
+            
+            elif opcion_num == 3:
+                while True:
+                    try:
+                        n_dias = int(input("Ingresa el número de días a reportar (ej. 7): "))
+                        if n_dias > 0:
+                            since_date = today - timedelta(days=n_dias - 1)
+                            until_date = today 
+                            return since_date, until_date
+                        else:
+                            print("⚠️ Debes ingresar un número positivo de días.")
+                    except ValueError:
+                        print("⚠️ Entrada no válida. Ingresa un número entero.")
+            else:
+                print("⚠️ Opción no válida. Ingresa 1, 2 o 3.")
+        except ValueError:
+            print("⚠️ Entrada no válida. Ingresa un número.")
+
+
+def seleccionar_proyecto_root(df_root_pys: pd.DataFrame) -> str:
+    """Muestra los proyectos raíz y le pide al usuario que seleccione uno por número."""
+    
+    print("\n--- 🌳 Proyectos Raíz Disponibles ---")
+    
+    proyectos_disponibles = df_root_pys[['name']].copy()
+    proyectos_disponibles.index += 1
+    print(proyectos_disponibles.to_string(header=False))
+    
+    max_opcion = len(df_root_pys)
+    
+    while True:
+        try:
+            opcion = input(f"\nIngresa el número del proyecto (1 a {max_opcion}) a reportar: ")
+            opcion = int(opcion)
+            
+            if 1 <= opcion <= max_opcion:
+                nombre_proyecto = df_root_pys.loc[opcion - 1, 'name']
+                return nombre_proyecto
+            else:
+                print(f"⚠️ Opción no válida. Por favor, ingresa un número entre 1 y {max_opcion}.")
+        except ValueError:
+            print("⚠️ Entrada no válida. Por favor, ingresa un número.")
+
+
+def seleccionar_cualquier_proyecto(df_pys: pd.DataFrame) -> str:
+    """Muestra TODOS los proyectos y le pide al usuario que seleccione uno."""
+    print("\n--- 📋 Todos los Proyectos Disponibles ---")
+    
+    df_temp = df_pys[['name']].copy().reset_index(drop=True)
+    df_temp.index += 1
+    print(df_temp.to_string(header=False))
+    
+    max_opcion = len(df_temp)
+    
+    while True:
+        try:
+            opcion = input(f"\nIngresa el número del proyecto (1 a {max_opcion}) a reportar: ")
+            opcion = int(opcion)
+            
+            if 1 <= opcion <= max_opcion:
+                nombre_proyecto = df_temp.loc[opcion, 'name']
+                return nombre_proyecto
+            else:
+                print(f"⚠️ Opción no válida. Por favor, ingresa un número entre 1 y {max_opcion}.")
+        except ValueError:
+            print("⚠️ Entrada no válida. Por favor, ingresa un número.")
+
+
+def obtener_subproyectos(df_pys: pd.DataFrame, df_root_pys: pd.DataFrame, nombre_proyecto_raiz: str) -> Tuple[str, pd.DataFrame]:
+    """Obtiene el ID del proyecto raíz y un DataFrame con sus subproyectos directos."""
+    try:
+        id_proyecto_raiz = df_root_pys.loc[df_root_pys['name'] == nombre_proyecto_raiz, 'id'].item()
+    except ValueError:
+        print(f"Error: No se pudo encontrar el ID del proyecto '{nombre_proyecto_raiz}'.")
+        return "", pd.DataFrame()
+
+    print(f"\nID del proyecto raíz: {id_proyecto_raiz}")
+    
+    df_subproyectos = df_pys[df_pys['parent_id'] == id_proyecto_raiz].copy()
+    
+    return id_proyecto_raiz, df_subproyectos
+
+
+def get_all_related_project_ids(df_pys: pd.DataFrame, root_id: str) -> Set[str]:
+    """Encuentra recursivamente todos los IDs de subproyectos anidados."""
+    all_ids = {root_id}
+    
+    def find_children(parent_id):
+        children = df_pys[df_pys['parent_id'] == parent_id]
+        
+        for child_id in children['id']:
+            if child_id not in all_ids:
+                all_ids.add(child_id)
+                find_children(child_id)
+
+    find_children(root_id)
+    return all_ids
+
+
+# --- Funciones de Conexión a API (Mismas del paso anterior) ---
+
+def getProyectos() -> pd.DataFrame:
+    """Obtiene la lista de proyectos de la cuenta de Todoist."""
+    try:
+        print("-> Conectando a la API para obtener proyectos...")
+        response = requests.get(API_URL + '/projects', headers={'Authorization': f'Bearer {API_TOKEN}'})
+        response.raise_for_status()
+        answerJson = response.json()
+        
+        if isinstance(answerJson, list):
+            pys_df = pd.DataFrame(answerJson)
+        elif isinstance(answerJson, dict) and 'results' in answerJson:
+            pys_df = pd.DataFrame(answerJson['results'])
+        else:
+            print("Formato de respuesta inesperado de la API de Todoist al obtener proyectos.")
+            return pd.DataFrame()
+            
+        print(f"-> Proyectos obtenidos: {len(pys_df)}")
+        return pys_df
+    except requests.exceptions.RequestException as e:
+        print(f"Error al obtener la lista de proyectos: {e}")
+        return pd.DataFrame()
+
+
+def get_sections() -> pd.DataFrame:
+    """Obtiene la lista de secciones de la cuenta de Todoist."""
+    try:
+        print("-> Conectando a la API para obtener secciones...")
+        response = requests.get(API_URL + '/sections', headers={'Authorization': f'Bearer {API_TOKEN}'})
+        response.raise_for_status()
+        answerJson = response.json()
+        
+        if isinstance(answerJson, list):
+            sections_df = pd.DataFrame(answerJson)
+        elif isinstance(answerJson, dict) and 'results' in answerJson:
+            sections_df = pd.DataFrame(answerJson['results'])
+        else:
+            print("Formato de respuesta inesperado de la API de Todoist al obtener secciones.")
+            return pd.DataFrame()
+            
+        print(f"-> Secciones obtenidas: {len(sections_df)}")
+        return sections_df[['id', 'name']]
+    except requests.exceptions.RequestException as e:
+        print(f"Error al obtener la lista de secciones: {e}")
+        return pd.DataFrame()
+
+
+def get_tareas_activas(proyecto_id: str) -> pd.DataFrame:
+    """Obtiene las tareas activas para un proyecto específico, manejando la clave 'results'."""
+    try:
+        response = requests.get(
+            API_URL + '/tasks', 
+            headers={'Authorization': f'Bearer {API_TOKEN}'},
+            params={'project_id': proyecto_id}
+        )
+        response.raise_for_status()
+        answerJson = response.json()
+        
+        if isinstance(answerJson, dict) and 'results' in answerJson:
+            return pd.DataFrame(answerJson['results'])
+        elif isinstance(answerJson, list):
+            return pd.DataFrame(answerJson)
+        else:
+            return pd.DataFrame()
+
+    except requests.exceptions.RequestException:
+        return pd.DataFrame()
+
+
+def get_tareas_completadas(proyecto_id: str, since_date: date, until_date: date) -> pd.DataFrame:
+    """Obtiene las tareas completadas para un proyecto en un rango de fechas."""
+    since_str = since_date.strftime('%Y-%m-%dT00:00:00')
+    until_str = until_date.strftime('%Y-%m-%dT23:59:59')
+    
+    try:
+        response = requests.get(
+            API_URL + '/tasks/completed/by_completion_date', 
+            headers={'Authorization': f'Bearer {API_TOKEN}'},
+            params={
+                'project_id': proyecto_id,
+                'since': since_str,
+                'until': until_str
+            }
+        )
+        response.raise_for_status()
+        tareas = response.json()
+        
+        if isinstance(tareas, dict) and 'items' in tareas:
+            return pd.DataFrame(tareas['items'])
+        elif isinstance(tareas, list):
+             return pd.DataFrame(tareas)
+        else:
+            return pd.DataFrame()
+
+    except requests.exceptions.RequestException:
+        return pd.DataFrame()
+
+
+# --- Lógica de Ejecución por Reporte ---
+
+def run_reporte_semanal():
+    """Ejecuta toda la lógica para generar el reporte semanal (solo hijos directos)."""
+    print("\n--- 🛠️ Generando reporte semanal... ---")
+    
+    # 1. Obtener rango de fechas
+    since_date, until_date = seleccionar_rango_fechas()
+    print(f"\nReporte configurado para el rango: **{since_date}** al **{until_date}**")
+
+    # 2. Obtener proyectos y validar
+    df_pys = getProyectos()
+    
+    if df_pys.empty:
+        print("No se pudieron obtener los proyectos o el DataFrame está vacío. Terminando.")
+        return
+    
+    # 3. Seleccionar proyecto raíz
+    df_root_pys = df_pys[df_pys['parent_id'].isna()].reset_index(drop=True)
+    proyecto_seleccionado = seleccionar_proyecto_root(df_root_pys)
+    print(f"\n✅ Has seleccionado el proyecto: **{proyecto_seleccionado}**") 
+    
+    # 4. Obtener ID del proyecto raíz y subproyectos (solo los directos)
+    id_proyecto_raiz, df_subproyectos = obtener_subproyectos(df_pys, df_root_pys, proyecto_seleccionado)
+    
+    if not id_proyecto_raiz:
+        return
+        
+    # 5. Obtener Tareas del Proyecto Raíz
+    print("\n--- 📥 Extrayendo Tareas del Proyecto Raíz ---")
+    
+    df_tareas_activas_raiz = get_tareas_activas(id_proyecto_raiz)
+    df_tareas_completadas_raiz = get_tareas_completadas(id_proyecto_raiz, since_date, until_date)
+    
+    # 6. Obtener Tareas de Subproyectos
+    df_tareas_subproyectos_activas = pd.DataFrame()
+    df_tareas_subproyectos_completadas = pd.DataFrame()
+    
+    if not df_subproyectos.empty:
+        print("\n--- 📥 Extrayendo Tareas de Subproyectos Directos ---")
+        
+        for index, row in df_subproyectos.iterrows():
+            sub_id = row['id']
+            sub_name = row['name']
+            print(f"Procesando subproyecto: {sub_name} (ID: {sub_id})")
+            
+            sub_activas = get_tareas_activas(sub_id)
+            if not sub_activas.empty:
+                df_tareas_subproyectos_activas = pd.concat([df_tareas_subproyectos_activas, sub_activas], ignore_index=True)
+            
+            sub_completadas = get_tareas_completadas(sub_id, since_date, until_date)
+            if not sub_completadas.empty:
+                df_tareas_subproyectos_completadas = pd.concat([df_tareas_subproyectos_completadas, sub_completadas], ignore_index=True)
+        
+    # 7. Consolidar DataFrames Finales
+    df_final_activas = pd.concat([df_tareas_activas_raiz, df_tareas_subproyectos_activas], ignore_index=True)
+    df_final_completadas = pd.concat([df_tareas_completadas_raiz, df_tareas_subproyectos_completadas], ignore_index=True)
+
+    # 8. Mostrar resultados (Resumen del reporte)
+    print("\n--- 📊 RESUMEN FINAL DEL REPORTE SEMANAL ---")
+    print(f"Total Tareas ACTIVAS (Raíz + Hijos Directos): {len(df_final_activas)}")
+    print(f"Total Tareas COMPLETADAS (Raíz + Hijos Directos): {len(df_final_completadas)}")
+
+
+def run_reporte_por_proyecto():
+    """Ejecuta toda la lógica para generar el reporte basado en un proyecto seleccionado (recursivo)."""
+    
+    # 1. Obtener rango de fechas
+    since_date, until_date = seleccionar_rango_fechas()
+    print(f"\nReporte configurado para el rango: **{since_date}** al **{until_date}**")
+
+    # 2. Obtener proyectos
+    df_pys = getProyectos()
+    if df_pys.empty:
+        print("No se pudieron obtener los proyectos o el DataFrame está vacío. Terminando.")
+        return
+
+    # 3. Obtener secciones (para mapeo posterior)
+    df_sections = get_sections()
+    section_map = dict(zip(df_sections['id'], df_sections['name']))
+
+    # 4. Seleccionar proyecto (de toda la lista)
+    proyecto_seleccionado = seleccionar_cualquier_proyecto(df_pys)
+    print(f"\n✅ Has seleccionado el proyecto: **{proyecto_seleccionado}**") 
+
+    # 5. Obtener ID del proyecto raíz
+    proyecto_raiz_info = df_pys[df_pys['name'] == proyecto_seleccionado]
+    if proyecto_raiz_info.empty:
+        print("Error: No se pudo encontrar el ID del proyecto seleccionado.")
+        return
+        
+    id_proyecto_raiz = proyecto_raiz_info.iloc[0]['id']
+    
+    # 6. Obtener todos los IDs de proyectos relacionados (recursivamente)
+    all_project_ids = get_all_related_project_ids(df_pys, id_proyecto_raiz)
+    print(f"-> Se reportarán {len(all_project_ids)} proyectos relacionados (incluyendo el inicial).")
+
+    # 7. Inicializar DataFrames para consolidación
+    df_final_activas = pd.DataFrame()
+    df_final_completadas = pd.DataFrame()
+    
+    # 8. Iterar y obtener tareas para todos los IDs
+    print("\n--- 📥 Extrayendo Tareas de Proyectos Relacionados ---")
+    for project_id in all_project_ids:
+        project_name = df_pys[df_pys['id'] == project_id]['name'].iloc[0]
+        print(f"  Procesando proyecto: {project_name} (ID: {project_id})...")
+
+        activas = get_tareas_activas(project_id)
+        if not activas.empty:
+            df_final_activas = pd.concat([df_final_activas, activas], ignore_index=True)
+        
+        completadas = get_tareas_completadas(project_id, since_date, until_date)
+        if not completadas.empty:
+            df_final_completadas = pd.concat([df_final_completadas, completadas], ignore_index=True)
+
+    # 9. Mapeo de nombres de sección
+    if not df_sections.empty:
+        if not df_final_activas.empty and 'section_id' in df_final_activas.columns:
+            df_final_activas['section_name'] = df_final_activas['section_id'].map(section_map).fillna('Sin Sección')
+            df_final_activas = df_final_activas.drop(columns=['section_id'])
+        
+        section_col = 'section_id' if 'section_id' in df_final_completadas.columns else 'sectionId'
+        if not df_final_completadas.empty and section_col in df_final_completadas.columns:
+            df_final_completadas['section_name'] = df_final_completadas[section_col].map(section_map).fillna('Sin Sección')
+            df_final_completadas = df_final_completadas.drop(columns=[section_col])
+
+
+    # 10. Mostrar resultados (Resumen del reporte)
+    print("\n--- 📊 REPORTE POR PROYECTO FINAL ---")
+    print(f"Total Tareas ACTIVAS consolidadas: {len(df_final_activas)}")
+    print(f"Total Tareas COMPLETADAS consolidadas: {len(df_final_completadas)}")
+    generar_reporte_html(df_final_activas, df_final_completadas, df_pys, proyecto_seleccionado, since_date, until_date)
+    
+def generar_reporte_html(df_activas: pd.DataFrame, df_completadas: pd.DataFrame, df_pys: pd.DataFrame, proyecto_seleccionado: str, since_date: date, until_date: date):
+    """
+    Genera un archivo HTML con las tareas activas y completadas agrupadas por Proyecto y Sección.
+    """
+    
+    # --- 1. Preparar DataFrames para Agrupación ---
+    
+    # Mapeo de Project ID a Project Name
+    project_map = dict(zip(df_pys['id'], df_pys['name']))
+
+    # Asegurar que las columnas 'project_id' existan y añadir 'project_name'
+    if 'project_id' in df_activas.columns:
+        df_activas['project_name'] = df_activas['project_id'].map(project_map).fillna('Desconocido')
+    
+    # Las completadas a veces usan 'project_id' y a veces 'projectId', lo comprobamos
+    project_col_comp = 'project_id' if 'project_id' in df_completadas.columns else 'projectId'
+    if project_col_comp in df_completadas.columns:
+        df_completadas['project_name'] = df_completadas[project_col_comp].map(project_map).fillna('Desconocido')
+        
+    # Columnas a mostrar en la tabla de tareas
+    columnas_mostrar_activas = ['content', 'due_date', 'priority']
+    columnas_mostrar_completadas = ['content', 'completed_date']
+    
+    # --- 2. Función Auxiliar para Generar HTML Agrupado ---
+    
+    def generar_html_agrupado(df: pd.DataFrame, columnas_mostrar: list) -> str:
+        if df.empty:
+            return "<p>No hay tareas en esta categoría.</p>"
+
+        html_out = ""
+        # Agrupar primero por Project Name, luego por Section Name
+        grouped = df.sort_values(by=['project_name', 'section_name']).groupby('project_name')
+
+        for project_name, project_group in grouped:
+            html_out += f"<h3>📂 Proyecto: {project_name}</h3>"
+            
+            # Sub-agrupar por Section Name dentro del Proyecto
+            section_grouped = project_group.groupby('section_name')
+            
+            for section_name, section_group in section_grouped:
+                
+                # Seleccionar solo las columnas a mostrar
+                table_df = section_group.reindex(columns=[col for col in columnas_mostrar if col in section_group.columns])
+                
+                # Generar la tabla HTML para esta sección
+                table_html = table_df.to_html(
+                    classes='table table-sm table-hover', 
+                    index=False,
+                    escape=False
+                )
+                
+                html_out += f"""
+                <div class="section-group">
+                    <h4>&nbsp;&nbsp;&nbsp;🏷️ Sección: {section_name} ({len(section_group)} tareas)</h4>
+                    <div class="table-responsive" style="margin-left: 20px;">
+                        {table_html}
+                    </div>
+                </div>
+                """
+        return html_out
+
+    # --- 3. Generar Contenido HTML ---
+
+    activas_html_agrupado = generar_html_agrupado(df_activas, columnas_mostrar_activas)
+    completadas_html_agrupado = generar_html_agrupado(df_completadas, columnas_mostrar_completadas)
+
+    # 4. Generar el contenido HTML completo
+    html_content = f"""
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+        <meta charset="UTF-8">
+        <title>Reporte de Todoist: {proyecto_seleccionado}</title>
+        <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
+        <style>
+            body {{ font-family: Arial, sans-serif; padding: 20px; }}
+            .header {{ background-color: #e9ecef; padding: 20px; margin-bottom: 30px; border-radius: 5px; }}
+            h1 {{ color: #dc4c3e; }}
+            h2 {{ border-bottom: 2px solid #dc4c3e; padding-bottom: 5px; margin-top: 40px; }}
+            h3 {{ color: #007bff; margin-top: 25px; border-left: 4px solid #007bff; padding-left: 10px; }}
+            h4 {{ font-size: 1.1rem; font-weight: bold; margin-top: 15px; color: #333; }}
+            .table-sm th {{ font-size: 0.85rem; }}
+        </style>
+    </head>
+    <body>
+        <div class="header">
+            <h1>📊 Reporte de Proyecto Todoist: {proyecto_seleccionado}</h1>
+            <p><strong>Rango de Fechas:</strong> {since_date.strftime('%d/%m/%Y')} - {until_date.strftime('%d/%m/%Y')}</p>
+            <p><strong>Generado el:</strong> {datetime.now().strftime('%d/%m/%Y a las %H:%M:%S')}</p>
+        </div>
+
+        <h2>✅ Tareas Completadas ({len(df_completadas)})</h2>
+        {completadas_html_agrupado}
+
+        <h2>⏳ Tareas Activas ({len(df_activas)})</h2>
+        {activas_html_agrupado}
+        
+    </body>
+    </html>
+    """
+
+    # 5. Guardar el archivo
+    filename = f"reporte_{proyecto_seleccionado.replace(' ', '_').replace('/', '')}_{datetime.now().strftime('%Y%m%d')}.html"
+    try:
+        with open(filename, 'w', encoding='utf-8') as f:
+            f.write(html_content)
+        print(f"\n--- ✅ REPORTE GENERADO ---")
+        print(f"El reporte HTML se guardó exitosamente como: **{filename}**")
+    except Exception as e:
+        print(f"\n--- ❌ ERROR AL GUARDAR EL REPORTE ---")
+        print(f"Ocurrió un error: {e}")
+
+# --- Ejecución Principal ---
+
+if __name__ == "__main__":
+    tipo_reporte = seleccionar_tipo_de_reporte()
+
+    if tipo_reporte == "semanal":
+        # Ahora llama a la función con toda la lógica del reporte semanal
+        run_reporte_semanal() 
+        
+    elif tipo_reporte == "proyecto":
+        run_reporte_por_proyecto()
