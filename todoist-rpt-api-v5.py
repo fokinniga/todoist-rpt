@@ -20,7 +20,7 @@ if not API_TOKEN:
 API_URL = 'https://api.todoist.com/api/v1' 
 
 
-# --- Funciones de Selección y Utilidad (Mismas del paso anterior) ---
+# --- Funciones de Selección y Utilidad ---
 
 def seleccionar_tipo_de_reporte() -> str:
     """Pregunta al usuario qué tipo de reporte de Todoist desea generar."""
@@ -167,7 +167,7 @@ def get_all_related_project_ids(df_pys: pd.DataFrame, root_id: str) -> Set[str]:
     return all_ids
 
 
-# --- Funciones de Conexión a API (Mismas del paso anterior) ---
+# --- Funciones de Conexión a API ---
 
 def getProyectos() -> pd.DataFrame:
     """Obtiene la lista de proyectos de la cuenta de Todoist."""
@@ -404,10 +404,14 @@ def run_reporte_por_proyecto():
     
 def generar_archivos_reporte(df_activas: pd.DataFrame, df_completadas: pd.DataFrame, df_pys: pd.DataFrame, proyecto_seleccionado: str, since_date: date, until_date: date):
     """
-    Orquesta la generación de reportes en HTML, PDF y Texto (WhatsApp).
+    Orquesta la generación de reportes en HTML, PDF, Texto (WhatsApp) y CSV.
     """
     print("\n--- 💾 GUARDANDO REPORTES ---")
     
+    # --- 0. Crear carpeta de reportes ---
+    output_dir = "reports"
+    os.makedirs(output_dir, exist_ok=True)
+
     # --- 1. Preparar Datos (Enriquecer con Nombres de Proyecto) ---
     project_map = dict(zip(df_pys['id'], df_pys['name']))
 
@@ -435,7 +439,7 @@ def generar_archivos_reporte(df_activas: pd.DataFrame, df_completadas: pd.DataFr
     
     # --- 3. Generar HTML ---
     html_content = obtener_contenido_html(df_activas, df_completadas, proyecto_seleccionado, since_date, until_date)
-    html_filename = f"{base_name}.html"
+    html_filename = os.path.join(output_dir, f"{base_name}.html")
     try:
         with open(html_filename, 'w', encoding='utf-8') as f:
             f.write(html_content)
@@ -444,12 +448,16 @@ def generar_archivos_reporte(df_activas: pd.DataFrame, df_completadas: pd.DataFr
         print(f"❌ Error HTML: {e}")
 
     # --- 4. Generar PDF ---
-    pdf_filename = f"{base_name}.pdf"
+    pdf_filename = os.path.join(output_dir, f"{base_name}.pdf")
     generar_reporte_pdf(html_content, pdf_filename)
 
     # --- 5. Generar Texto WhatsApp ---
-    txt_filename = f"{base_name}_whatsapp.txt"
+    txt_filename = os.path.join(output_dir, f"{base_name}_whatsapp.txt")
     generar_reporte_whatsapp(df_activas, df_completadas, proyecto_seleccionado, since_date, until_date, txt_filename)
+
+    # --- 6. Generar CSV ---
+    csv_filename = os.path.join(output_dir, f"{base_name}.csv")
+    generar_reporte_csv(df_activas, df_completadas, csv_filename)
 
 
 def obtener_contenido_html(df_activas: pd.DataFrame, df_completadas: pd.DataFrame, proyecto_seleccionado: str, since_date: date, until_date: date) -> str:
@@ -575,13 +583,63 @@ def generar_reporte_whatsapp(df_activas: pd.DataFrame, df_completadas: pd.DataFr
     except Exception as e:
         print(f"❌ Error TXT: {e}")
 
+def generar_reporte_csv(df_activas: pd.DataFrame, df_completadas: pd.DataFrame, filename: str):
+    """Genera un archivo CSV consolidado con las tareas activas y completadas."""
+    try:
+        # Preparar copias para no afectar los originales
+        df_a = df_activas.copy()
+        df_c = df_completadas.copy()
+
+        # Agregar columna de estado
+        df_a['Estado'] = 'Activa'
+        df_c['Estado'] = 'Completada'
+
+        # Normalizar columnas de fecha
+        if 'due_date' in df_a.columns:
+            df_a['Fecha'] = df_a['due_date']
+        elif 'due' in df_a.columns:
+            df_a['Fecha'] = df_a['due'].apply(lambda x: x.get('date') if isinstance(x, dict) else None)
+        else:
+            df_a['Fecha'] = None
+
+        if 'completed_date' in df_c.columns:
+            df_c['Fecha'] = df_c['completed_date']
+        else:
+            df_c['Fecha'] = None
+
+        # Seleccionar y renombrar columnas comunes
+        cols_to_keep = {
+            'Estado': 'Estado',
+            'project_name': 'Proyecto',
+            'section_name': 'Sección',
+            'content': 'Tarea',
+            'Fecha': 'Fecha',
+            'priority': 'Prioridad'
+        }
+
+        # Filtrar columnas existentes
+        df_a_final = df_a[[c for c in cols_to_keep.keys() if c in df_a.columns]]
+        df_c_final = df_c[[c for c in cols_to_keep.keys() if c in df_c.columns]]
+
+        # Combinar
+        df_combined = pd.concat([df_a_final, df_c_final], ignore_index=True)
+        
+        # Renombrar para el CSV final
+        df_combined = df_combined.rename(columns=cols_to_keep)
+
+        # Guardar a CSV
+        df_combined.to_csv(filename, index=False, encoding='utf-8-sig')
+        print(f"✅ CSV: {filename}")
+        
+    except Exception as e:
+        print(f"❌ Error CSV: {e}")
+
 # --- Ejecución Principal ---
 
 if __name__ == "__main__":
     tipo_reporte = seleccionar_tipo_de_reporte()
 
     if tipo_reporte == "semanal":
-        # Ahora llama a la función con toda la lógica del reporte semanal
         run_reporte_semanal() 
         
     elif tipo_reporte == "proyecto":
