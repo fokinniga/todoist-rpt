@@ -3,7 +3,9 @@ import pandas as pd
 from datetime import datetime, timedelta, date
 from dotenv import load_dotenv
 import requests
+import logging
 from typing import Tuple, Optional, Dict, List, Set
+from xhtml2pdf import pisa
 
 # --- CONFIGURACIÓN Y CONEXIÓN ---
 
@@ -326,6 +328,9 @@ def run_reporte_semanal():
     print("\n--- 📊 RESUMEN FINAL DEL REPORTE SEMANAL ---")
     print(f"Total Tareas ACTIVAS (Raíz + Hijos Directos): {len(df_final_activas)}")
     print(f"Total Tareas COMPLETADAS (Raíz + Hijos Directos): {len(df_final_completadas)}")
+    
+    # 9. Generar Archivos
+    generar_archivos_reporte(df_final_activas, df_final_completadas, df_pys, proyecto_seleccionado, since_date, until_date)
 
 
 def run_reporte_por_proyecto():
@@ -395,58 +400,82 @@ def run_reporte_por_proyecto():
     print("\n--- 📊 REPORTE POR PROYECTO FINAL ---")
     print(f"Total Tareas ACTIVAS consolidadas: {len(df_final_activas)}")
     print(f"Total Tareas COMPLETADAS consolidadas: {len(df_final_completadas)}")
-    generar_reporte_html(df_final_activas, df_final_completadas, df_pys, proyecto_seleccionado, since_date, until_date)
+    generar_archivos_reporte(df_final_activas, df_final_completadas, df_pys, proyecto_seleccionado, since_date, until_date)
     
-def generar_reporte_html(df_activas: pd.DataFrame, df_completadas: pd.DataFrame, df_pys: pd.DataFrame, proyecto_seleccionado: str, since_date: date, until_date: date):
+def generar_archivos_reporte(df_activas: pd.DataFrame, df_completadas: pd.DataFrame, df_pys: pd.DataFrame, proyecto_seleccionado: str, since_date: date, until_date: date):
     """
-    Genera un archivo HTML con las tareas activas y completadas agrupadas por Proyecto y Sección.
+    Orquesta la generación de reportes en HTML, PDF y Texto (WhatsApp).
     """
+    print("\n--- 💾 GUARDANDO REPORTES ---")
     
-    # --- 1. Preparar DataFrames para Agrupación ---
-    
-    # Mapeo de Project ID a Project Name
+    # --- 1. Preparar Datos (Enriquecer con Nombres de Proyecto) ---
     project_map = dict(zip(df_pys['id'], df_pys['name']))
 
-    # Asegurar que las columnas 'project_id' existan y añadir 'project_name'
+    # Activas
     if 'project_id' in df_activas.columns:
         df_activas['project_name'] = df_activas['project_id'].map(project_map).fillna('Desconocido')
-    
-    # Las completadas a veces usan 'project_id' y a veces 'projectId', lo comprobamos
+    elif not df_activas.empty:
+        df_activas['project_name'] = 'Proyecto'
+
+    # Completadas
     project_col_comp = 'project_id' if 'project_id' in df_completadas.columns else 'projectId'
     if project_col_comp in df_completadas.columns:
         df_completadas['project_name'] = df_completadas[project_col_comp].map(project_map).fillna('Desconocido')
-        
-    # Columnas a mostrar en la tabla de tareas
+    elif not df_completadas.empty:
+        df_completadas['project_name'] = 'Proyecto'
+
+    # Asegurar section_name
+    if 'section_name' not in df_activas.columns and not df_activas.empty:
+        df_activas['section_name'] = 'General'
+    if 'section_name' not in df_completadas.columns and not df_completadas.empty:
+        df_completadas['section_name'] = 'General'
+
+    # --- 2. Generar Nombres de Archivo ---
+    base_name = f"reporte_{proyecto_seleccionado.replace(' ', '_').replace('/', '')}_{datetime.now().strftime('%Y%m%d')}"
+    
+    # --- 3. Generar HTML ---
+    html_content = obtener_contenido_html(df_activas, df_completadas, proyecto_seleccionado, since_date, until_date)
+    html_filename = f"{base_name}.html"
+    try:
+        with open(html_filename, 'w', encoding='utf-8') as f:
+            f.write(html_content)
+        print(f"✅ HTML: {html_filename}")
+    except Exception as e:
+        print(f"❌ Error HTML: {e}")
+
+    # --- 4. Generar PDF ---
+    pdf_filename = f"{base_name}.pdf"
+    generar_reporte_pdf(html_content, pdf_filename)
+
+    # --- 5. Generar Texto WhatsApp ---
+    txt_filename = f"{base_name}_whatsapp.txt"
+    generar_reporte_whatsapp(df_activas, df_completadas, proyecto_seleccionado, since_date, until_date, txt_filename)
+
+
+def obtener_contenido_html(df_activas: pd.DataFrame, df_completadas: pd.DataFrame, proyecto_seleccionado: str, since_date: date, until_date: date) -> str:
+    """Genera el string HTML del reporte."""
+    
     columnas_mostrar_activas = ['content', 'due_date', 'priority']
     columnas_mostrar_completadas = ['content', 'completed_date']
-    
-    # --- 2. Función Auxiliar para Generar HTML Agrupado ---
     
     def generar_html_agrupado(df: pd.DataFrame, columnas_mostrar: list) -> str:
         if df.empty:
             return "<p>No hay tareas en esta categoría.</p>"
 
         html_out = ""
-        # Agrupar primero por Project Name, luego por Section Name
+        # Agrupar por Project Name y Section Name
+        if 'project_name' not in df.columns: df['project_name'] = 'Desconocido'
+        if 'section_name' not in df.columns: df['section_name'] = 'General'
+
         grouped = df.sort_values(by=['project_name', 'section_name']).groupby('project_name')
 
         for project_name, project_group in grouped:
             html_out += f"<h3>📂 Proyecto: {project_name}</h3>"
-            
-            # Sub-agrupar por Section Name dentro del Proyecto
             section_grouped = project_group.groupby('section_name')
             
             for section_name, section_group in section_grouped:
-                
-                # Seleccionar solo las columnas a mostrar
                 table_df = section_group.reindex(columns=[col for col in columnas_mostrar if col in section_group.columns])
-                
-                # Generar la tabla HTML para esta sección
-                table_html = table_df.to_html(
-                    classes='table table-sm table-hover', 
-                    index=False,
-                    escape=False
-                )
+                table_html = table_df.to_html(classes='table table-sm table-hover', index=False, escape=False)
                 
                 html_out += f"""
                 <div class="section-group">
@@ -458,56 +487,93 @@ def generar_reporte_html(df_activas: pd.DataFrame, df_completadas: pd.DataFrame,
                 """
         return html_out
 
-    # --- 3. Generar Contenido HTML ---
+    activas_html = generar_html_agrupado(df_activas, columnas_mostrar_activas)
+    completadas_html = generar_html_agrupado(df_completadas, columnas_mostrar_completadas)
 
-    activas_html_agrupado = generar_html_agrupado(df_activas, columnas_mostrar_activas)
-    completadas_html_agrupado = generar_html_agrupado(df_completadas, columnas_mostrar_completadas)
-
-    # 4. Generar el contenido HTML completo
-    html_content = f"""
+    return f"""
     <!DOCTYPE html>
     <html lang="es">
     <head>
         <meta charset="UTF-8">
-        <title>Reporte de Todoist: {proyecto_seleccionado}</title>
-        <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
+        <title>Reporte: {proyecto_seleccionado}</title>
         <style>
             body {{ font-family: Arial, sans-serif; padding: 20px; }}
-            .header {{ background-color: #e9ecef; padding: 20px; margin-bottom: 30px; border-radius: 5px; }}
-            h1 {{ color: #dc4c3e; }}
-            h2 {{ border-bottom: 2px solid #dc4c3e; padding-bottom: 5px; margin-top: 40px; }}
-            h3 {{ color: #007bff; margin-top: 25px; border-left: 4px solid #007bff; padding-left: 10px; }}
-            h4 {{ font-size: 1.1rem; font-weight: bold; margin-top: 15px; color: #333; }}
-            .table-sm th {{ font-size: 0.85rem; }}
+            .header {{ background-color: #f8f9fa; padding: 20px; margin-bottom: 20px; border-bottom: 3px solid #dc4c3e; }}
+            h1 {{ color: #dc4c3e; margin: 0; }}
+            h2 {{ border-bottom: 1px solid #ccc; padding-bottom: 5px; margin-top: 30px; color: #333; }}
+            h3 {{ color: #0056b3; margin-top: 20px; }}
+            h4 {{ color: #666; font-size: 1em; }}
+            table {{ width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.9em; }}
+            th, td {{ padding: 8px; text-align: left; border-bottom: 1px solid #ddd; }}
+            th {{ background-color: #f2f2f2; }}
         </style>
     </head>
     <body>
         <div class="header">
-            <h1>📊 Reporte de Proyecto Todoist: {proyecto_seleccionado}</h1>
-            <p><strong>Rango de Fechas:</strong> {since_date.strftime('%d/%m/%Y')} - {until_date.strftime('%d/%m/%Y')}</p>
-            <p><strong>Generado el:</strong> {datetime.now().strftime('%d/%m/%Y a las %H:%M:%S')}</p>
+            <h1>📊 {proyecto_seleccionado}</h1>
+            <p><strong>Fechas:</strong> {since_date.strftime('%d/%m/%Y')} - {until_date.strftime('%d/%m/%Y')}</p>
         </div>
-
         <h2>✅ Tareas Completadas ({len(df_completadas)})</h2>
-        {completadas_html_agrupado}
-
+        {completadas_html}
         <h2>⏳ Tareas Activas ({len(df_activas)})</h2>
-        {activas_html_agrupado}
-        
+        {activas_html}
     </body>
     </html>
     """
 
-    # 5. Guardar el archivo
-    filename = f"reporte_{proyecto_seleccionado.replace(' ', '_').replace('/', '')}_{datetime.now().strftime('%Y%m%d')}.html"
+def generar_reporte_pdf(html_content: str, filename: str):
+    """Genera un PDF a partir del contenido HTML usando xhtml2pdf."""
+    try:
+        with open(filename, "wb") as result_file:
+            pisa_status = pisa.CreatePDF(html_content, dest=result_file)
+        
+        if pisa_status.err:
+            print(f"⚠️ Error generando PDF: {pisa_status.err}")
+        else:
+            print(f"✅ PDF: {filename}")
+    except Exception as e:
+        print(f"❌ Error al guardar PDF: {e}")
+
+def generar_reporte_whatsapp(df_activas: pd.DataFrame, df_completadas: pd.DataFrame, proyecto_seleccionado: str, since_date: date, until_date: date, filename: str):
+    """Genera un archivo de texto con formato optimizado para WhatsApp."""
+    
+    txt = f"*📊 REPORTE: {proyecto_seleccionado}*\n"
+    txt += f"📅 {since_date.strftime('%d/%m')} - {until_date.strftime('%d/%m')}\n"
+    
+    # Completadas
+    txt += f"\n*✅ COMPLETADAS ({len(df_completadas)})*"
+    if df_completadas.empty:
+        txt += "\n_(Ninguna)_"
+    else:
+        if 'project_name' not in df_completadas.columns: df_completadas['project_name'] = 'General'
+        for proj, group in df_completadas.groupby('project_name'):
+            txt += f"\n\n📂 *{proj}*"
+            for _, row in group.iterrows():
+                txt += f"\n  ▪ {row['content']}"
+
+    # Activas
+    txt += f"\n\n*⏳ PENDIENTES ({len(df_activas)})*"
+    if df_activas.empty:
+        txt += "\n_(Ninguna)_"
+    else:
+        if 'project_name' not in df_activas.columns: df_activas['project_name'] = 'General'
+        for proj, group in df_activas.groupby('project_name'):
+            txt += f"\n\n📂 *{proj}*"
+            for _, row in group.iterrows():
+                due_str = ""
+                if 'due' in row and isinstance(row['due'], dict) and 'date' in row['due']:
+                    due_str = f" (📅 {row['due']['date']})"
+                elif 'due_date' in row and row['due_date']:
+                    due_str = f" (📅 {row['due_date']})"
+                
+                txt += f"\n  ▫ {row['content']}{due_str}"
+
     try:
         with open(filename, 'w', encoding='utf-8') as f:
-            f.write(html_content)
-        print(f"\n--- ✅ REPORTE GENERADO ---")
-        print(f"El reporte HTML se guardó exitosamente como: **{filename}**")
+            f.write(txt)
+        print(f"✅ WhatsApp (TXT): {filename}")
     except Exception as e:
-        print(f"\n--- ❌ ERROR AL GUARDAR EL REPORTE ---")
-        print(f"Ocurrió un error: {e}")
+        print(f"❌ Error TXT: {e}")
 
 # --- Ejecución Principal ---
 

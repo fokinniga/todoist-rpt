@@ -1,0 +1,63 @@
+*📊 REPORTE: ISS*
+📅 05/01 - 11/01
+
+*✅ COMPLETADAS (6)*
+
+📂 *ISS GENERAL*
+  ▪ Vence licencia OMA Dgo
+
+📂 *ISS TKT'S*
+  ▪ Revisar entrega de licencia permanente con Edgar Robles.
+  ▪ Solicitar licencia permanente.
+  ▪ Solicitar correcxion licencia cadereyta
+  ▪ Dar de alta licencia temporal
+
+*⏳ PENDIENTES (85)*
+
+
+📂 *ISS CERTIFICACIONES*
+  ▫ CERTIFICACION ADVANCED MONTERREY AT (📅 2026-01-26)
+
+
+📂 *ISS GENERAL*
+  ▫ Mandar reporte de pendientes a David (📅 2026-01-12)
+  ▫ Llenar reporte proyectos para reunión norte. (📅 2026-01-08)
+  ▫ Vence licencia OMA (📅 2026-02-05)
+  ▫ Preguntar por kick off. (📅 2026-01-12)
+
+📂 *ISS TKT'S*
+  ▫ Instalar licencia. (📅 2026-02-05)
+  ▫ Revisar funcionamiento de licencia. (📅 2026-01-14)
+  ▫ Comprar licencia definitiva (📅 2026-01-12)
+  ▫ Instalar licencia definitiva. (📅 2026-01-15)
+  ▫ Enviar licencia permanente. (📅 2026-01-12)
+  ▫ Solicitar licencia Tracking kit. (📅 2026-01-12)
+
+📂 *SEMEX - C5 NL MODIFICATORIO*
+  ▫ Entregar protocolo de pruebas [C5 / SEMEX]
+  ▫ Generar licencia temporal para el sistema [ISS].
+  ▫ Dar de alta licencia temporal en sistema [ISS]. m
+  ▫ Agregar servidores al cluster [ISS]. m
+  ▫ Hacer pruebas de funcionamiento [ISS]. m
+  ▫ Crear usuarios en MCC [ISS]. m
+  ▫ Crear permisos de usuarios en MCC [ISS]. m
+  ▫ Crear estaciones de trabajo en MCC [ISS]. m
+  ▫ Crear escritorios para estaciones de trabajo [ISS]. m
+  ▫ Revisión de funcionamiento de servidor de camiones [ISS]. m
+  ▫ Entrega de sistema funcionando [ISS / SEMEX / C5]. m
+  ▫ Revisión de días de grabación [C5 / SEMEX / ISS]. m
+  ▫ Actualizar servidor de configuración [ISS]
+  ▫ Revisión de sistema funcionando correctamente [ISS].
+  ▫ Entrega de sistema funcionando [C5 / SEMEX / ISS].
+  ▫ Actualizar servidores periféricos [ISS].
+  ▫ Instalación de SecurOS en estaciones de trabajo [C5].
+  ▫ Revisión de funcionamiento de MCC y estaciones de trabajo [C5]. m
+  ▫ Revisar licencia Camiones
+  ▫ Revisar con Beto cuando se puede realizar los updates. (📅 2026-01-12)
+
+📂 *SEMEX - CAMIONES SINTRAM*
+  ▫ Revisar y documentar el alcance de los camiones. (📅 2026-02-01)
+  ▫ Sacar licencias de Sintram 820
+  ▫ Hacer pruebas de alcance con grabador Dahua.
+  ▫ Pruebas con Vivotek
+
