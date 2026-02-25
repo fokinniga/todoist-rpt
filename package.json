@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "axios": "^1.13.5",
+    "dotenv": "^17.3.1",
+    "puppeteer": "^24.37.5",
+    "readline-sync": "^1.4.10"
+  }
+}
