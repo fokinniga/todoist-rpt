@@ -324,12 +324,20 @@ def run_reporte_semanal():
     df_final_activas = pd.concat([df_tareas_activas_raiz, df_tareas_subproyectos_activas], ignore_index=True)
     df_final_completadas = pd.concat([df_tareas_completadas_raiz, df_tareas_subproyectos_completadas], ignore_index=True)
 
-    # 8. Mostrar resultados (Resumen del reporte)
-    print("\n--- 📊 RESUMEN FINAL DEL REPORTE SEMANAL ---")
-    print(f"Total Tareas ACTIVAS (Raíz + Hijos Directos): {len(df_final_activas)}")
-    print(f"Total Tareas COMPLETADAS (Raíz + Hijos Directos): {len(df_final_completadas)}")
-    
-    # 9. Generar Archivos
+    # 9. Obtener secciones (para mapeo posterior)
+    df_sections = get_sections()
+    section_map = dict(zip(df_sections['id'], df_sections['name']))
+
+    # 10. Mapeo de nombres de sección
+    if not df_sections.empty:
+        if not df_final_activas.empty and 'section_id' in df_final_activas.columns:
+            df_final_activas['section_name'] = df_final_activas['section_id'].map(section_map).fillna('Sin Sección')
+        
+        section_col = 'section_id' if 'section_id' in df_final_completadas.columns else 'sectionId'
+        if not df_final_completadas.empty and section_col in df_final_completadas.columns:
+            df_final_completadas['section_name'] = df_final_completadas[section_col].map(section_map).fillna('Sin Sección')
+
+    # 11. Generar Archivos
     generar_archivos_reporte(df_final_activas, df_final_completadas, df_pys, proyecto_seleccionado, since_date, until_date)
 
 
@@ -554,10 +562,15 @@ def generar_reporte_whatsapp(df_activas: pd.DataFrame, df_completadas: pd.DataFr
         txt += "\n_(Ninguna)_"
     else:
         if 'project_name' not in df_completadas.columns: df_completadas['project_name'] = 'General'
-        for proj, group in df_completadas.groupby('project_name'):
+        if 'section_name' not in df_completadas.columns: df_completadas['section_name'] = 'General'
+        
+        for proj, proj_group in df_completadas.groupby('project_name'):
             txt += f"\n\n📂 *{proj}*"
-            for _, row in group.iterrows():
-                txt += f"\n  ▪ {row['content']}"
+            for sect, sect_group in proj_group.groupby('section_name'):
+                if sect != 'General' and sect != 'Sin Sección':
+                    txt += f"\n  🏷️ _{sect}_"
+                for _, row in sect_group.iterrows():
+                    txt += f"\n    ▪ {row['content']}"
 
     # Activas
     txt += f"\n\n*⏳ PENDIENTES ({len(df_activas)})*"
@@ -565,16 +578,21 @@ def generar_reporte_whatsapp(df_activas: pd.DataFrame, df_completadas: pd.DataFr
         txt += "\n_(Ninguna)_"
     else:
         if 'project_name' not in df_activas.columns: df_activas['project_name'] = 'General'
-        for proj, group in df_activas.groupby('project_name'):
+        if 'section_name' not in df_activas.columns: df_activas['section_name'] = 'General'
+        
+        for proj, proj_group in df_activas.groupby('project_name'):
             txt += f"\n\n📂 *{proj}*"
-            for _, row in group.iterrows():
-                due_str = ""
-                if 'due' in row and isinstance(row['due'], dict) and 'date' in row['due']:
-                    due_str = f" (📅 {row['due']['date']})"
-                elif 'due_date' in row and row['due_date']:
-                    due_str = f" (📅 {row['due_date']})"
-                
-                txt += f"\n  ▫ {row['content']}{due_str}"
+            for sect, sect_group in proj_group.groupby('section_name'):
+                if sect != 'General' and sect != 'Sin Sección':
+                    txt += f"\n  🏷️ _{sect}_"
+                for _, row in sect_group.iterrows():
+                    due_str = ""
+                    if 'due' in row and isinstance(row['due'], dict) and 'date' in row['due']:
+                        due_str = f" (📅 {row['due']['date']})"
+                    elif 'due_date' in row and row['due_date']:
+                        due_str = f" (📅 {row['due_date']})"
+                    
+                    txt += f"\n    ▫ {row['content']}{due_str}"
 
     try:
         with open(filename, 'w', encoding='utf-8') as f:
