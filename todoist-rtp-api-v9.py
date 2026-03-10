@@ -101,9 +101,11 @@ def obtener_html_template(df_a, df_c, proyecto, since, until) -> str:
     # --- Tareas Completadas ---
     if not df_c.empty:
         html_report += "<h3>Tareas Completadas:</h3>"
-        for proj, p_group in df_c.groupby('project_name', sort=False):
+        # CAMBIO: sort=True para orden alfabético
+        for proj, p_group in df_c.groupby('project_name', sort=True):
             html_report += f"<h4 style='color: #0056b3; margin-top: 15px;'>📂 Proyecto: {proj}</h4>"
-            for sect, s_group in p_group.groupby('section_name', sort=False):
+            # CAMBIO: sort=True para orden alfabético
+            for sect, s_group in p_group.groupby('section_name', sort=True):
                 html_report += f"<div class='section-header'>&nbsp;&nbsp;🏷️ Sección: {sect}</div><ul class='task-list' style='margin-left: 20px;'>"
                 for _, row in s_group.iterrows():
                     fecha_venc = row['due']['date'] if (isinstance(row.get('due'), dict) and row['due']) else 'N/A'
@@ -114,9 +116,11 @@ def obtener_html_template(df_a, df_c, proyecto, since, until) -> str:
     # --- Tareas Pendientes ---
     if not df_a.empty:
         html_report += "<hr><h3>Tareas Pendientes:</h3>"
-        for proj, p_group in df_a.groupby('project_name', sort=False):
+        # CAMBIO: sort=True para orden alfabético
+        for proj, p_group in df_a.groupby('project_name', sort=True):
             html_report += f"<h4 style='color: #0056b3; margin-top: 15px;'>📂 Proyecto: {proj}</h4>"
-            for sect, s_group in p_group.groupby('section_name', sort=False):
+            # CAMBIO: sort=True para orden alfabético
+            for sect, s_group in p_group.groupby('section_name', sort=True):
                 html_report += f"<div class='section-header'>&nbsp;&nbsp;🏷️ Sección: {sect}</div><ul class='task-list' style='margin-left: 20px;'>"
                 for _, row in s_group.iterrows():
                     fecha_venc = row['due']['date'] if (isinstance(row.get('due'), dict) and row['due']) else 'N/A'
@@ -210,9 +214,11 @@ def run():
             # Completadas
             f.write(f"✅ *COMPLETADAS ({len(df_c)})*\n")
             if not df_c.empty:
-                for proj, p_group in df_c.groupby('project_name', sort=False):
+                # CAMBIO: sort=True para orden alfabético
+                for proj, p_group in df_c.groupby('project_name', sort=True):
                     f.write(f"\n📂 *{proj}*")
-                    for sect, s_group in p_group.groupby('section_name', sort=False):
+                    # CAMBIO: sort=True para orden alfabético
+                    for sect, s_group in p_group.groupby('section_name', sort=True):
                         if sect != 'General': f.write(f"\n  🏷️ _{sect}_")
                         for _, row in s_group.iterrows():
                             f.write(f"\n    [X] {row['content']}")
@@ -223,9 +229,11 @@ def run():
             # Pendientes
             f.write(f"\n⏳ *PENDIENTES ({len(df_a)})*\n")
             if not df_a.empty:
-                for proj, p_group in df_a.groupby('project_name', sort=False):
+                # CAMBIO: sort=True para orden alfabético
+                for proj, p_group in df_a.groupby('project_name', sort=True):
                     f.write(f"\n📂 *{proj}*")
-                    for sect, s_group in p_group.groupby('section_name', sort=False):
+                    # CAMBIO: sort=True para orden alfabético
+                    for sect, s_group in p_group.groupby('section_name', sort=True):
                         if sect != 'General': f.write(f"\n  🏷️ _{sect}_")
                         for _, row in s_group.iterrows():
                             f.write(f"\n    [ ] {row['content']}")
