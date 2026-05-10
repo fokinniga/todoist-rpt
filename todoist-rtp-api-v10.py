@@ -21,10 +21,14 @@ def seleccionar_tipo_de_reporte() -> str:
     print("\n--- 📝 GENERADOR DE REPORTES TODOIST ---")
     print("1. Reporte semanal (Proyectos Raíz)")
     print("2. Reporte por proyecto (Cualquier proyecto)")
+    print("3. Reporte solo tareas activas (Proyectos Raíz)")
+    print("4. Reporte solo tareas activas (Cualquier proyecto)")
     while True:
-        opcion = input("Selecciona (1 o 2): ")
+        opcion = input("Selecciona (1, 2, 3 o 4): ")
         if opcion == "1": return "semanal"
         if opcion == "2": return "proyecto"
+        if opcion == "3": return "activas_raiz"
+        if opcion == "4": return "activas_proyecto"
 
 def seleccionar_rango_fechas() -> Tuple[date, date]:
     today = datetime.now().date()
@@ -76,11 +80,18 @@ def get_api_data(endpoint: str, params: dict = None) -> pd.DataFrame:
 
 # --- PLANTILLA HTML (ESTILO MONOSPACE CON [X] y [ ]) ---
 
-def obtener_html_template(df_a, df_c, proyecto, since, until) -> str:
+def obtener_html_template(df_a, df_c, proyecto, since, until, tipo) -> str:
     total_a = len(df_a)
     total_c = len(df_c)
     total_tareas = total_a + total_c
     porcentaje = round((total_c / total_tareas * 100), 2) if total_tareas > 0 else 0
+
+    if "activas" in tipo:
+        periodo_texto = f"Al día de hoy: {datetime.now().strftime('%y/%m/%d')}"
+        estatus_global = f"({total_a} tareas activas)"
+    else:
+        periodo_texto = f"Periodo de Relevancia: {since.strftime('%y/%m/%d')} - {until.strftime('%y/%m/%d')}"
+        estatus_global = f"({total_c}/{total_tareas} tareas - {porcentaje}%)"
 
     html_report = f"""
     <style>
@@ -94,8 +105,8 @@ def obtener_html_template(df_a, df_c, proyecto, since, until) -> str:
       hr {{ border: 0; border-top: 1px dashed #ccc; margin: 20px 0; }}
     </style>
     <h1>Reporte de tareas: {proyecto}</h1>
-    <h2>Periodo de Relevancia: {since.strftime('%y/%m/%d')} - {until.strftime('%y/%m/%d')}</h2>
-    <h4 class="project-name-header">Estatus Global: ({total_c}/{total_tareas} tareas - {porcentaje}%)</h4>
+    <h2>{periodo_texto}</h2>
+    <h4 class="project-name-header">Estatus Global: {estatus_global}</h4>
     """
 
     # --- Tareas Completadas ---
@@ -135,28 +146,40 @@ def obtener_html_template(df_a, df_c, proyecto, since, until) -> str:
     html_report += f"""
     <hr>
     <h2>Resumen de Tareas Relevantes:</h2>
-    <div class="project-summary-item"><strong>Total Tareas Completadas:</strong> {total_c}</div>
-    <div class="project-summary-item"><strong>Total Tareas Relevantes:</strong> {total_tareas}</div>
-    <div class="project-summary-item"><strong>Porcentaje de Completado:</strong> {porcentaje}%</div>
     """
+    
+    if "activas" in tipo:
+        html_report += f"""
+        <div class="project-summary-item"><strong>Total Tareas Activas:</strong> {total_a}</div>
+        """
+    else:
+        html_report += f"""
+        <div class="project-summary-item"><strong>Total Tareas Completadas:</strong> {total_c}</div>
+        <div class="project-summary-item"><strong>Total Tareas Relevantes:</strong> {total_tareas}</div>
+        <div class="project-summary-item"><strong>Porcentaje de Completado:</strong> {porcentaje}%</div>
+        """
+        
     return html_report
 
 # --- FLUJO PRINCIPAL ---
 
 def run():
     tipo = seleccionar_tipo_de_reporte()
-    since, until = seleccionar_rango_fechas()
+    if "activas" not in tipo:
+        since, until = seleccionar_rango_fechas()
+    else:
+        since = until = datetime.now().date()
     
     df_pys = get_api_data('projects')
     if df_pys.empty:
         print("❌ No se pudieron cargar los proyectos."); return
 
-    nombre_p, id_p = seleccionar_proyecto_interactivo(df_pys, solo_root=(tipo == "semanal"))
+    nombre_p, id_p = seleccionar_proyecto_interactivo(df_pys, solo_root=(tipo in ["semanal", "activas_raiz"]))
 
     # Obtener IDs de proyectos relacionados (subproyectos)
     project_ids = {id_p}
     if 'parent_id' in df_pys.columns:
-        if tipo == "semanal":
+        if tipo in ["semanal", "activas_raiz"]:
             # Hijos directos (como en v5)
             hijos = df_pys[df_pys['parent_id'] == id_p]['id'].tolist()
             project_ids.update(hijos)
@@ -177,10 +200,12 @@ def run():
     
     for p_id in project_ids:
         a = get_api_data('tasks', {'project_id': p_id})
-        c = get_api_data('tasks/completed/by_completion_date', 
-                         {'project_id': p_id, 'since': since.strftime('%Y-%m-%dT00:00:00'), 'until': until.strftime('%Y-%m-%dT23:59:59')})
+        if "activas" not in tipo:
+            c = get_api_data('tasks/completed/by_completion_date', 
+                             {'project_id': p_id, 'since': since.strftime('%Y-%m-%dT00:00:00'), 'until': until.strftime('%Y-%m-%dT23:59:59')})
+            if not c.empty: df_c = pd.concat([df_c, c], ignore_index=True)
+            
         if not a.empty: df_a = pd.concat([df_a, a], ignore_index=True)
-        if not c.empty: df_c = pd.concat([df_c, c], ignore_index=True)
 
     output_dir = "reports"; os.makedirs(output_dir, exist_ok=True)
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -201,7 +226,7 @@ def run():
         p_col_c = 'project_id' if 'project_id' in df_c.columns else 'projectId'
         df_c['project_name'] = df_c[p_col_c].map(p_map).fillna('Desconocido')
 
-    html_content = obtener_html_template(df_a, df_c, nombre_p, since, until)
+    html_content = obtener_html_template(df_a, df_c, nombre_p, since, until, tipo)
 
     try:
         # PDF
@@ -214,25 +239,29 @@ def run():
         # WhatsApp (TXT)
         with open(os.path.join(output_dir, f"{base_name}_whatsapp.txt"), "w", encoding='utf-8') as f:
             f.write(f"*REPORTE {nombre_p}*\n")
-            f.write(f"📅 {since.strftime('%d/%m')} - {until.strftime('%d/%m')}\n\n")
-            
-            # Completadas
-            f.write(f"✅ *COMPLETADAS ({len(df_c)})*\n")
-            if not df_c.empty:
-                # CAMBIO: sort=True para orden alfabético
-                for proj, p_group in df_c.groupby('project_name', sort=True):
-                    f.write(f"\n📂 *{proj}*")
-                    # CAMBIO: sort=True para orden alfabético
-                    for sect, s_group in p_group.groupby('section_name', sort=True):
-                        if sect != 'General': f.write(f"\n  🏷️ _{sect}_")
-                        for _, row in s_group.iterrows():
-                            f.write(f"\n    [X] {row['content']}")
-                            desc = row.get('description', '') if 'description' in row else ''
-                            if isinstance(desc, str) and desc.strip():
-                                f.write(f"\n        Nota: {desc.replace('\n', ' ')[:150]}")
-                f.write("\n")
+            if "activas" in tipo:
+                f.write(f"📅 Al día de hoy: {datetime.now().strftime('%d/%m/%Y')}\n\n")
             else:
-                f.write("Ninguna\n")
+                f.write(f"📅 {since.strftime('%d/%m')} - {until.strftime('%d/%m')}\n\n")
+            
+            if "activas" not in tipo:
+                # Completadas
+                f.write(f"✅ *COMPLETADAS ({len(df_c)})*\n")
+                if not df_c.empty:
+                    # CAMBIO: sort=True para orden alfabético
+                    for proj, p_group in df_c.groupby('project_name', sort=True):
+                        f.write(f"\n📂 *{proj}*")
+                        # CAMBIO: sort=True para orden alfabético
+                        for sect, s_group in p_group.groupby('section_name', sort=True):
+                            if sect != 'General': f.write(f"\n  🏷️ _{sect}_")
+                            for _, row in s_group.iterrows():
+                                f.write(f"\n    [X] {row['content']}")
+                                desc = row.get('description', '') if 'description' in row else ''
+                                if isinstance(desc, str) and desc.strip():
+                                    f.write(f"\n        Nota: {desc.replace('\n', ' ')[:150]}")
+                    f.write("\n")
+                else:
+                    f.write("Ninguna\n")
             
             # Pendientes
             f.write(f"\n⏳ *PENDIENTES ({len(df_a)})*\n")
