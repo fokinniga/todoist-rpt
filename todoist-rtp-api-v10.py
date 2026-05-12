@@ -47,6 +47,16 @@ def seleccionar_rango_fechas() -> Tuple[date, date]:
                 return today - timedelta(days=n - 1), today
             except: print("Número no válido.")
 
+def seleccionar_incluir_comentarios() -> bool:
+    print("\n--- 💬 COMENTARIOS ---")
+    while True:
+        opcion = input("¿Deseas incluir los comentarios de las tareas en el reporte? (s/n): ").strip().lower()
+        if opcion in ['s', 'si', 'sí']:
+            return True
+        if opcion in ['n', 'no']:
+            return False
+        print("Opción no válida. Ingresa 's' o 'n'.")
+
 def seleccionar_proyecto_interactivo(df_pys: pd.DataFrame, solo_root: bool) -> Tuple[str, str]:
     if solo_root and 'parent_id' in df_pys.columns:
         df_display = df_pys[df_pys['parent_id'].isna()].reset_index(drop=True)
@@ -122,8 +132,22 @@ def obtener_html_template(df_a, df_c, proyecto, since, until, tipo) -> str:
                     fecha_venc = row['due']['date'] if (isinstance(row.get('due'), dict) and row['due']) else 'N/A'
                     fecha_fin = row['completed_date'][:10] if 'completed_date' in row else 'N/A'
                     desc = row.get('description', '') if 'description' in row else ''
-                    # Forzamos salto de línea y espacios para indentación en monospace
-                    desc_html = f"<br>&nbsp;&nbsp;&nbsp;&nbsp;Nota: {desc}" if (isinstance(desc, str) and desc.strip()) else ""
+                    comentarios = row.get('comments', []) if 'comments' in row else []
+                    desc_text = []
+                    if isinstance(desc, str) and desc.strip():
+                        desc_text.append(f"Nota: {desc}")
+                    if isinstance(comentarios, list) and comentarios:
+                        if len(comentarios) == 1:
+                            desc_text.append(f"Comentario: {comentarios[0]}")
+                        else:
+                            desc_text.append("Comentarios:")
+                            for c in comentarios:
+                                desc_text.append(f"&nbsp;&nbsp;- {c}")
+                    elif isinstance(comentarios, str) and comentarios.strip():
+                        desc_text.append(f"Comentarios: {comentarios}")
+                    desc_html = ""
+                    if desc_text:
+                        desc_html = "<br>&nbsp;&nbsp;&nbsp;&nbsp;" + "<br>&nbsp;&nbsp;&nbsp;&nbsp;".join(desc_text)
                     html_report += f"<li class='task-item'>[X] {row['content']} (Venc.: {fecha_venc}) (Fin.: {fecha_fin}){desc_html}</li>"
                 html_report += "</ul>"
 
@@ -139,7 +163,22 @@ def obtener_html_template(df_a, df_c, proyecto, since, until, tipo) -> str:
                 for _, row in s_group.iterrows():
                     fecha_venc = row['due']['date'] if (isinstance(row.get('due'), dict) and row['due']) else 'N/A'
                     desc = row.get('description', '') if 'description' in row else ''
-                    desc_html = f"<br>&nbsp;&nbsp;&nbsp;&nbsp;Nota: {desc}" if (isinstance(desc, str) and desc.strip()) else ""
+                    comentarios = row.get('comments', []) if 'comments' in row else []
+                    desc_text = []
+                    if isinstance(desc, str) and desc.strip():
+                        desc_text.append(f"Nota: {desc}")
+                    if isinstance(comentarios, list) and comentarios:
+                        if len(comentarios) == 1:
+                            desc_text.append(f"Comentario: {comentarios[0]}")
+                        else:
+                            desc_text.append("Comentarios:")
+                            for c in comentarios:
+                                desc_text.append(f"&nbsp;&nbsp;- {c}")
+                    elif isinstance(comentarios, str) and comentarios.strip():
+                        desc_text.append(f"Comentarios: {comentarios}")
+                    desc_html = ""
+                    if desc_text:
+                        desc_html = "<br>&nbsp;&nbsp;&nbsp;&nbsp;" + "<br>&nbsp;&nbsp;&nbsp;&nbsp;".join(desc_text)
                     html_report += f"<li class='task-item'>[ ] {row['content']} (Venc.: {fecha_venc}){desc_html}</li>"
                 html_report += "</ul>"
 
@@ -165,6 +204,7 @@ def obtener_html_template(df_a, df_c, proyecto, since, until, tipo) -> str:
 
 def run():
     tipo = seleccionar_tipo_de_reporte()
+    incluir_comentarios = seleccionar_incluir_comentarios()
     if "activas" not in tipo:
         since, until = seleccionar_rango_fechas()
     else:
@@ -206,6 +246,28 @@ def run():
             if not c.empty: df_c = pd.concat([df_c, c], ignore_index=True)
             
         if not a.empty: df_a = pd.concat([df_a, a], ignore_index=True)
+
+    if incluir_comentarios:
+        print("\n⏳ Obteniendo comentarios de las tareas...")
+        def fetch_comments_for_df(df):
+            if df.empty: return df
+            comments_col = []
+            id_col = 'id' if 'id' in df.columns else 'task_id' if 'task_id' in df.columns else None
+            if not id_col:
+                df['comments'] = ''
+                return df
+            for _, row in df.iterrows():
+                comms = get_api_data('comments', {'task_id': row[id_col]})
+                if not comms.empty and 'content' in comms.columns:
+                    c_texts = comms['content'].dropna().tolist()
+                    comments_col.append([str(ct).replace('\n', ' ') for ct in c_texts if str(ct).strip()])
+                else:
+                    comments_col.append([])
+            df['comments'] = comments_col
+            return df
+
+        df_a = fetch_comments_for_df(df_a)
+        df_c = fetch_comments_for_df(df_c)
 
     output_dir = "reports"; os.makedirs(output_dir, exist_ok=True)
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -259,6 +321,16 @@ def run():
                                 desc = row.get('description', '') if 'description' in row else ''
                                 if isinstance(desc, str) and desc.strip():
                                     f.write(f"\n        Nota: {desc.replace('\n', ' ')[:150]}")
+                                comentarios = row.get('comments', []) if 'comments' in row else []
+                                if isinstance(comentarios, list) and comentarios:
+                                    if len(comentarios) == 1:
+                                        f.write(f"\n        Comentario: {comentarios[0]}")
+                                    else:
+                                        f.write(f"\n        Comentarios:")
+                                        for c in comentarios:
+                                            f.write(f"\n          - {c}")
+                                elif isinstance(comentarios, str) and comentarios.strip():
+                                    f.write(f"\n        Comentarios: {comentarios.replace('\n', ' ')}")
                     f.write("\n")
                 else:
                     f.write("Ninguna\n")
@@ -277,6 +349,16 @@ def run():
                             desc = row.get('description', '') if 'description' in row else ''
                             if isinstance(desc, str) and desc.strip():
                                 f.write(f"\n        Nota: {desc.replace('\n', ' ')[:150]}")
+                            comentarios = row.get('comments', []) if 'comments' in row else []
+                            if isinstance(comentarios, list) and comentarios:
+                                if len(comentarios) == 1:
+                                    f.write(f"\n        Comentario: {comentarios[0]}")
+                                else:
+                                    f.write(f"\n        Comentarios:")
+                                    for c in comentarios:
+                                        f.write(f"\n          - {c}")
+                            elif isinstance(comentarios, str) and comentarios.strip():
+                                f.write(f"\n        Comentarios: {comentarios.replace('\n', ' ')}")
                 f.write("\n")
             else:
                 f.write("Ninguna\n")
