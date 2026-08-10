@@ -92,6 +92,38 @@ def get_api_data(endpoint: str, params: dict = None) -> pd.DataFrame:
             print(f"Detalle: {r.text}")
         return pd.DataFrame()
 
+# --- FUNCION AUXILIAR FECHA DE VENCIMIENTO Y ORDENAMIENTO ---
+
+def obtener_fecha_vencimiento(row) -> str:
+    due = row.get('due') if isinstance(row, dict) else row.get('due') if 'due' in row else None
+    if isinstance(due, dict) and due and 'date' in due and due['date']:
+        return str(due['date'])[:10]
+    if isinstance(row, dict):
+        if 'due_date' in row and row['due_date'] and str(row['due_date']).strip() and str(row['due_date']) != 'nan':
+            return str(row['due_date'])[:10]
+    else:
+        if 'due_date' in row and row['due_date'] and str(row['due_date']).strip() and str(row['due_date']) != 'nan':
+            return str(row['due_date'])[:10]
+    return 'N/A'
+
+def obtener_sort_key_completadas(row) -> tuple:
+    c_date = ''
+    comp = row.get('completed_date')
+    if comp and str(comp) != 'nan':
+        c_date = str(comp)[:10]
+    if c_date:
+        return (0, c_date, str(row.get('content', '')))
+    v_date = obtener_fecha_vencimiento(row)
+    if v_date != 'N/A':
+        return (0, v_date, str(row.get('content', '')))
+    return (1, '9999-99-99', str(row.get('content', '')))
+
+def obtener_sort_key_pendientes(row) -> tuple:
+    v_date = obtener_fecha_vencimiento(row)
+    if v_date != 'N/A':
+        return (0, v_date, str(row.get('content', '')))
+    return (1, '9999-99-99', str(row.get('content', '')))
+
 # --- PLANTILLA HTML (ESTILO MONOSPACE CON [X] y [ ]) ---
 
 def obtener_html_template(df_a, df_c, proyecto, since, until, tipo) -> str:
@@ -132,9 +164,10 @@ def obtener_html_template(df_a, df_c, proyecto, since, until, tipo) -> str:
             # CAMBIO: sort=True para orden alfabético
             for sect, s_group in p_group.groupby('section_name', sort=True):
                 html_report += f"<div class='section-header'>&nbsp;&nbsp;🏷️ Sección: {sect}</div><ul class='task-list' style='margin-left: 20px;'>"
-                for _, row in s_group.iterrows():
-                    fecha_venc = row['due']['date'] if (isinstance(row.get('due'), dict) and row['due']) else 'N/A'
-                    fecha_fin = row['completed_date'][:10] if 'completed_date' in row else 'N/A'
+                s_group_sorted = sorted(s_group.to_dict('records'), key=obtener_sort_key_completadas)
+                for row in s_group_sorted:
+                    fecha_venc = obtener_fecha_vencimiento(row)
+                    fecha_fin = str(row['completed_date'])[:10] if ('completed_date' in row and row['completed_date'] and str(row['completed_date']) != 'nan') else 'N/A'
                     desc = row.get('description', '') if 'description' in row else ''
                     comentarios = row.get('comments', []) if 'comments' in row else []
                     desc_text = []
@@ -164,8 +197,9 @@ def obtener_html_template(df_a, df_c, proyecto, since, until, tipo) -> str:
             # CAMBIO: sort=True para orden alfabético
             for sect, s_group in p_group.groupby('section_name', sort=True):
                 html_report += f"<div class='section-header'>&nbsp;&nbsp;🏷️ Sección: {sect}</div><ul class='task-list' style='margin-left: 20px;'>"
-                for _, row in s_group.iterrows():
-                    fecha_venc = row['due']['date'] if (isinstance(row.get('due'), dict) and row['due']) else 'N/A'
+                s_group_sorted = sorted(s_group.to_dict('records'), key=obtener_sort_key_pendientes)
+                for row in s_group_sorted:
+                    fecha_venc = obtener_fecha_vencimiento(row)
                     desc = row.get('description', '') if 'description' in row else ''
                     comentarios = row.get('comments', []) if 'comments' in row else []
                     desc_text = []
@@ -320,8 +354,11 @@ def run():
                         # CAMBIO: sort=True para orden alfabético
                         for sect, s_group in p_group.groupby('section_name', sort=True):
                             if sect != 'General': f.write(f"\n  🏷️ _{sect}_")
-                            for _, row in s_group.iterrows():
-                                f.write(f"\n    [X] {row['content']}")
+                            s_group_sorted = sorted(s_group.to_dict('records'), key=obtener_sort_key_completadas)
+                            for row in s_group_sorted:
+                                fecha_venc = obtener_fecha_vencimiento(row)
+                                fecha_fin = str(row['completed_date'])[:10] if ('completed_date' in row and row['completed_date'] and str(row['completed_date']) != 'nan') else 'N/A'
+                                f.write(f"\n    [X] {row['content']} (Venc.: {fecha_venc}) (Fin.: {fecha_fin})")
                                 desc = row.get('description', '') if 'description' in row else ''
                                 if isinstance(desc, str) and desc.strip():
                                     f.write(f"\n        Nota: {desc.replace('\n', ' ')[:150]}")
@@ -348,8 +385,10 @@ def run():
                     # CAMBIO: sort=True para orden alfabético
                     for sect, s_group in p_group.groupby('section_name', sort=True):
                         if sect != 'General': f.write(f"\n  🏷️ _{sect}_")
-                        for _, row in s_group.iterrows():
-                            f.write(f"\n    [ ] {row['content']}")
+                        s_group_sorted = sorted(s_group.to_dict('records'), key=obtener_sort_key_pendientes)
+                        for row in s_group_sorted:
+                            fecha_venc = obtener_fecha_vencimiento(row)
+                            f.write(f"\n    [ ] {row['content']} (Venc.: {fecha_venc})")
                             desc = row.get('description', '') if 'description' in row else ''
                             if isinstance(desc, str) and desc.strip():
                                 f.write(f"\n        Nota: {desc.replace('\n', ' ')[:150]}")
